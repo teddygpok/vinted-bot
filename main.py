@@ -37,7 +37,8 @@ def fetch_items(session):
         logging.error(e); return []
 
 def is_valid(item):
-    return True  # TEST
+    title = item.get("title", "").lower()
+    return "rayquaza" in title
 
 def notify(item):
     title = item.get("title", "?")
@@ -54,7 +55,7 @@ def main():
     logging.info("Bot démarré !")
     seen = load_seen()
     session = get_session()
-    first_run = True  # TEST : toujours notifier
+    first_run = not seen
 
     while True:
         try:
@@ -65,13 +66,20 @@ def main():
                 continue
 
             valid_items = [i for i in items if is_valid(i)]
-            new = [i for i in valid_items if str(i["id"]) not in seen]
-            for item in new:
-                notify(item)
-                seen.add(str(item["id"]))
-            for item in items:
-                seen.add(str(item["id"]))
-            if new: save_seen(seen)
+
+            if first_run:
+                seen = {str(i["id"]) for i in items}
+                save_seen(seen)
+                first_run = False
+                logging.info("Premier lancement ok.")
+            else:
+                new = [i for i in valid_items if str(i["id"]) not in seen]
+                for item in new:
+                    notify(item)
+                    seen.add(str(item["id"]))
+                for item in items:
+                    seen.add(str(item["id"]))
+                if new: save_seen(seen)
 
         except Exception as e:
             logging.error(f"Erreur : {e}")
