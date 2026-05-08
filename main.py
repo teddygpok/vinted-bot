@@ -49,28 +49,41 @@ def notify(item):
 
 def main():
     logging.info("Bot démarré !")
-    seen = load_seen()
+    
+    try:
+        send_telegram_message("Bot Vinted Rayquaza demarre ! Tu seras notifie des qu'une carte Rayquaza est mise en vente.")
+        logging.info("Message Telegram envoyé avec succès !")
+    except Exception as e:
+        logging.error(f"Erreur Telegram : {e}")
+
+    seen_ids = load_seen()
     session = get_session()
-    first_run = not seen
+    first_run = not seen_ids
 
     while True:
-        items = fetch_items(session)
-        if not items:
-            session = get_session()
-            time.sleep(300)
-            continue
+        try:
+            items = fetch_items(session)
+            if not items:
+                session = get_session()
+                time.sleep(300)
+                continue
 
-        if first_run:
-            seen = {str(i["id"]) for i in items}
-            save_seen(seen)
-            first_run = False
-            logging.info("Premier lancement : annonces existantes ignorées.")
-        else:
-            new = [i for i in items if str(i["id"]) not in seen]
-            for item in new:
-                notify(item)
-                seen.add(str(item["id"]))
-            if new: save_seen(seen)
+            if first_run:
+                seen_ids = {str(i["id"]) for i in items}
+                save_seen(seen_ids)
+                first_run = False
+                logging.info("Premier lancement : annonces existantes ignorées.")
+            else:
+                new = [i for i in items if str(i["id"]) not in seen_ids]
+                for item in new:
+                    notify(item)
+                    seen_ids.add(str(item["id"]))
+                if new:
+                    save_seen(seen_ids)
+
+        except Exception as e:
+            logging.error(f"Erreur : {e}")
+            session = get_session()
 
         time.sleep(CHECK_INTERVAL)
 
