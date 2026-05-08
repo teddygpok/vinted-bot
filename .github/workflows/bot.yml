@@ -2,20 +2,37 @@ name: Vinted Rayquaza Bot
 
 on:
   schedule:
-    - cron: '0 * * * *'  # toutes les heures
-  workflow_dispatch:  # permet de lancer manuellement
+    - cron: '0 * * * *'
+  workflow_dispatch:
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      
+      - name: Restore seen_ids cache
+        uses: actions/cache@v3
+        with:
+          path: seen_ids.json
+          key: seen-ids-cache
+          restore-keys: seen-ids-cache
+
       - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
+          
       - run: pip install requests
+      
       - run: python main.py
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         timeout-minutes: 55
+
+      - name: Save seen_ids cache
+        if: always()
+        uses: actions/cache@v3
+        with:
+          path: seen_ids.json
+          key: seen-ids-cache
