@@ -4,10 +4,10 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-CHECK_INTERVAL = 120  # vérification toutes les 2 minutes
+CHECK_INTERVAL = 120
 
 VINTED_URL = "https://www.vinted.fr/api/v2/catalog/items"
-PARAMS = {"search_text": "carte rayquaza", "order": "newest_first", "per_page": 20}
+PARAMS = {"search_text": "rayquaza", "order": "newest_first", "per_page": 20}
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)",
     "Accept": "application/json",
@@ -36,6 +36,10 @@ def fetch_items(session):
     except Exception as e:
         logging.error(e); return []
 
+def is_valid(item):
+    title = item.get("title", "").lower()
+    return "rayquaza" in title
+
 def notify(item):
     title = item.get("title", "?")
     price = item.get("price", {}).get("amount", "?")
@@ -49,16 +53,9 @@ def notify(item):
 
 def main():
     logging.info("Bot démarré !")
-    
-    try:
-        send_telegram_message("Bot Vinted Rayquaza demarre ! Tu seras notifie des qu'une carte Rayquaza est mise en vente.")
-        logging.info("Message Telegram envoyé avec succès !")
-    except Exception as e:
-        logging.error(f"Erreur Telegram : {e}")
-
-    seen_ids = load_seen()
+    seen = load_seen()
     session = get_session()
-    first_run = not seen_ids
+    first_run = not seen
 
     while True:
         try:
@@ -68,18 +65,21 @@ def main():
                 time.sleep(300)
                 continue
 
+            valid_items = [i for i in items if is_valid(i)]
+
             if first_run:
-                seen_ids = {str(i["id"]) for i in items}
-                save_seen(seen_ids)
+                seen = {str(i["id"]) for i in items}
+                save_seen(seen)
                 first_run = False
-                logging.info("Premier lancement : annonces existantes ignorées.")
+                logging.info("Premier lancement ok.")
             else:
-                new = [i for i in items if str(i["id"]) not in seen_ids]
+                new = [i for i in valid_items if str(i["id"]) not in seen]
                 for item in new:
                     notify(item)
-                    seen_ids.add(str(item["id"]))
-                if new:
-                    save_seen(seen_ids)
+                    seen.add(str(item["id"]))
+                for item in items:
+                    seen.add(str(item["id"]))
+                if new: save_seen(seen)
 
         except Exception as e:
             logging.error(f"Erreur : {e}")
