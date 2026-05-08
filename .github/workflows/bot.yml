@@ -9,21 +9,21 @@ jobs:
   run-bot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      
+      - uses: actions/checkout@v4
+
       - name: Restore seen_ids cache
-        uses: actions/cache@v3
+        uses: actions/cache/restore@v4
         with:
           path: seen_ids.json
-          key: seen-ids-cache
-          restore-keys: seen-ids-cache
+          key: seen-ids-${{ github.run_id }}
+          restore-keys: seen-ids-
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          
+
       - run: pip install requests
-      
+
       - run: python main.py
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
@@ -32,7 +32,7 @@ jobs:
 
       - name: Save seen_ids cache
         if: always()
-        uses: actions/cache@v3
+        uses: actions/cache/save@v4
         with:
           path: seen_ids.json
-          key: seen-ids-cache
+          key: seen-ids-${{ github.run_id }}
