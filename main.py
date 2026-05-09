@@ -32,12 +32,15 @@ def is_valid(item):
     return "rayquaza" in title
 
 def is_recent(item):
-    created_at = item.get("created_at_ts")
-    logging.info(f"Item: {item.get('title')} - created_at_ts: {created_at}")
+    # Essayer différents champs de date
+    created_at = item.get("created_at_ts") or item.get("created_at") or item.get("photo", {}).get("created_at_ts")
+    logging.info(f"Champs dispo: {[k for k in item.keys()]}")
     if not created_at:
-        return False
+        return True  # si pas de date, on notifie quand même
+    if isinstance(created_at, str):
+        from datetime import datetime
+        created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00")).timestamp()
     age = datetime.now(timezone.utc) - datetime.fromtimestamp(created_at, tz=timezone.utc)
-    logging.info(f"Age: {age}")
     return age < timedelta(hours=1, minutes=10)
     
 def notify(item):
