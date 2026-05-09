@@ -1,4 +1,5 @@
 import os, time, json, requests, logging
+from datetime import datetime, timezone, timedelta
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
@@ -13,16 +14,6 @@ HEADERS = {
     "Accept": "application/json",
     "Accept-Language": "fr-FR,fr;q=0.9",
 }
-
-SEEN_FILE = "seen_ids.json"
-
-def load_seen():
-    try:
-        with open(SEEN_FILE) as f: return set(json.load(f))
-    except: return set()
-
-def save_seen(ids):
-    with open(SEEN_FILE, "w") as f: json.dump(list(ids), f)
 
 def get_session():
     s = requests.Session()
@@ -40,6 +31,13 @@ def is_valid(item):
     title = item.get("title", "").lower()
     return "rayquaza" in title
 
+def is_recent(item):
+    created_at = item.get("created_at_ts")
+    if not created_at:
+        return False
+    age = datetime.now(timezone.utc) - datetime.fromtimestamp(created_at, tz=timezone.utc)
+    return age < timedelta(hours=1, minutes=10)
+
 def notify(item):
     title = item.get("title", "?")
     price = item.get("price", {}).get("amount", "?")
@@ -53,9 +51,8 @@ def notify(item):
 
 def main():
     logging.info("Bot démarré !")
-    seen = load_seen()
     session = get_session()
-    first_run = not seen
+    notified = set()
 
     while True:
         try:
@@ -65,22 +62,13 @@ def main():
                 time.sleep(300)
                 continue
 
-            valid_items = [i for i in items if is_valid(i)]
-
-            if first_run:
-                seen = {str(i["id"]) for i in items}
-                save_seen(seen)
-                first_run = False
-                logging.info("Premier lancement ok.")
-            else:
-                new = [i for i in valid_items if str(i["id"]) not in seen]
-                for item in new:
+            for item in items:
+                item_id = str(item["id"])
+                if is_valid(item) and is_recent(item) and item_id not in notified:
                     notify(item)
-                    seen.add(str(item["id"]))
-                for item in items:
-                    seen.add(str(item["id"]))
-                if new: save_seen(seen)
-
+                    notified.add(item_id)
+                    logging.info(f"Notifié : {item.get('title')}")
+                    
         except Exception as e:
             logging.error(f"Erreur : {e}")
             session = get_session()
