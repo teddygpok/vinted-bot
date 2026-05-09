@@ -33,11 +33,13 @@ def is_valid(item):
 
 def is_recent(item):
     created_at = item.get("created_at_ts")
+    logging.info(f"Item: {item.get('title')} - created_at_ts: {created_at}")
     if not created_at:
         return False
     age = datetime.now(timezone.utc) - datetime.fromtimestamp(created_at, tz=timezone.utc)
+    logging.info(f"Age: {age}")
     return age < timedelta(hours=1, minutes=10)
-
+    
 def notify(item):
     title = item.get("title", "?")
     price = item.get("price", {}).get("amount", "?")
