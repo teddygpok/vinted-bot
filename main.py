@@ -27,9 +27,21 @@ def fetch_items(session):
         logging.error(e); return []
 
 def is_valid(item):
+    import re
     title = item.get("title", "").lower()
-    return "rayquaza" in title
-
+    if "rayquaza" not in title:
+        return False
+    patterns = [
+        r"dp\s*47",
+        r"0?18",
+        r"232",
+        r"102",
+        r"97",
+        r"0?39",
+        r"107",
+    ]
+    return any(re.search(p, title) for p in patterns)
+    
 def get_photo_url(item):
     try:
         photos = item.get("photos", [])
