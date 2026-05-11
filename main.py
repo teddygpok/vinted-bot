@@ -32,13 +32,13 @@ def is_valid(item):
     if "rayquaza" not in title:
         return False
     patterns = [
-        r"dp\s*47",
-        r"0?18",
-        r"232",
-        r"102",
-        r"97",
-        r"0?39",
-        r"107",
+        r"\bdp\s*47\b",
+        r"\b0?18\b",
+        r"\b232\b",
+        r"\b102\b",
+        r"\b97\b",
+        r"\b0?39\b",
+        r"\b107\b",
     ]
     return any(re.search(p, title) for p in patterns)
     
