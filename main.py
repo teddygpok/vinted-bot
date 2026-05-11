@@ -1,5 +1,4 @@
-import os, time, json, requests, logging
-from datetime import datetime, timezone, timedelta
+import os, time, requests, logging
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
@@ -31,33 +30,47 @@ def is_valid(item):
     title = item.get("title", "").lower()
     return "rayquaza" in title
 
-def is_recent(item):
-    # Essayer différents champs de date
-    created_at = item.get("created_at_ts") or item.get("created_at") or item.get("photo", {}).get("created_at_ts")
-    logging.info(f"Champs dispo: {[k for k in item.keys()]}")
-    if not created_at:
-        return True  # si pas de date, on notifie quand même
-    if isinstance(created_at, str):
-        from datetime import datetime
-        created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00")).timestamp()
-    age = datetime.now(timezone.utc) - datetime.fromtimestamp(created_at, tz=timezone.utc)
-    return age < timedelta(hours=1, minutes=10)
-    
+def get_photo_url(item):
+    try:
+        photos = item.get("photos", [])
+        if photos:
+            return photos[0].get("url", "") or photos[0].get("full_size_url", "")
+        photo = item.get("photo", {})
+        return photo.get("url", "") or photo.get("full_size_url", "")
+    except:
+        return ""
+
 def notify(item):
     title = item.get("title", "?")
     price = item.get("price", {}).get("amount", "?")
     url = f"https://www.vinted.fr/items/{item['id']}"
-    text = f"🟢 Nouvelle carte Rayquaza !\n\n{title}\nPrix : {price} EUR\n\n{url}"
-    requests.post(
-        f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
-        json={"chat_id": TELEGRAM_CHAT_ID, "text": text},
-        timeout=10
-    )
+    photo_url = get_photo_url(item)
+
+    if photo_url:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto",
+            json={
+                "chat_id": TELEGRAM_CHAT_ID,
+                "photo": photo_url,
+                "caption": f"{title}\nPrix : {price} EUR\n\n{url}"
+            },
+            timeout=10
+        )
+    else:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+            json={
+                "chat_id": TELEGRAM_CHAT_ID,
+                "text": f"{title}\nPrix : {price} EUR\n\n{url}"
+            },
+            timeout=10
+        )
 
 def main():
     logging.info("Bot démarré !")
     session = get_session()
     notified = set()
+    first_run = True
 
     while True:
         try:
@@ -67,13 +80,21 @@ def main():
                 time.sleep(300)
                 continue
 
-            for item in items:
-                item_id = str(item["id"])
-                if is_valid(item) and is_recent(item) and item_id not in notified:
-                    notify(item)
-                    notified.add(item_id)
-                    logging.info(f"Notifié : {item.get('title')}")
-                    
+            valid_items = [i for i in items if is_valid(i)]
+
+            if first_run:
+                for item in valid_items:
+                    notified.add(str(item["id"]))
+                first_run = False
+                logging.info(f"{len(notified)} annonces existantes ignorées.")
+            else:
+                for item in valid_items:
+                    item_id = str(item["id"])
+                    if item_id not in notified:
+                        notify(item)
+                        notified.add(item_id)
+                        logging.info(f"Notifié : {item.get('title')}")
+
         except Exception as e:
             logging.error(f"Erreur : {e}")
             session = get_session()
