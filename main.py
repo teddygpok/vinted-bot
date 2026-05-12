@@ -39,6 +39,18 @@ def is_valid(item):
         r"\b97\b",
         r"\b0?39\b",
         r"\b107\b",
+        r"\b0{0,2}3\b",
+        r"\b218\b",
+        r"\b87\b",
+        r"\b105\b",
+        r"\b64\b",
+        r"\b69\b",
+        r"\b128\b",
+        r"\b10\b",
+        r"\bsl\b",
+        r"\b16\b",
+        r"\b26\b",
+        r"\b9\b",
     ]
     return any(re.search(p, title) for p in patterns)
     
