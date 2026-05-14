@@ -1,4 +1,5 @@
-import os, time, requests, logging
+import os, time, requests, logging, re
+from datetime import datetime, timezone, timedelta
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
@@ -14,6 +15,14 @@ HEADERS = {
     "Accept-Language": "fr-FR,fr;q=0.9",
 }
 
+PATTERNS = [
+    r"\bdp\s*47\b", r"\b0?18\b", r"\b232\b", r"\b102\b",
+    r"\b97\b", r"\b0?39\b", r"\b107\b", r"\b0{0,2}3\b",
+    r"\b218\b", r"\b87\b", r"\b105\b", r"\b64\b",
+    r"\b69\b", r"\b128\b", r"\b10\b", r"\bsl\b",
+    r"\b16\b", r"\b26\b", r"\b9\b",
+]
+
 def get_session():
     s = requests.Session()
     s.get("https://www.vinted.fr", headers=HEADERS, timeout=10)
@@ -27,66 +36,40 @@ def fetch_items(session):
         logging.error(e); return []
 
 def is_valid(item):
-    import re
     title = item.get("title", "").lower()
     if "rayquaza" not in title:
         return False
-    patterns = [
-        r"\bdp\s*47\b",
-        r"\b0?18\b",
-        r"\b232\b",
-        r"\b102\b",
-        r"\b97\b",
-        r"\b0?39\b",
-        r"\b107\b",
-        r"\b0{0,2}3\b",
-        r"\b218\b",
-        r"\b87\b",
-        r"\b105\b",
-        r"\b64\b",
-        r"\b69\b",
-        r"\b128\b",
-        r"\b10\b",
-        r"\bsl\b",
-        r"\b16\b",
-        r"\b26\b",
-        r"\b9\b",
-    ]
-    return any(re.search(p, title) for p in patterns)
-    
-def get_photo_url(item):
+    return any(re.search(p, title) for p in PATTERNS)
+
+def is_recent(item):
     try:
-        photos = item.get("photos", [])
-        if photos:
-            return photos[0].get("url", "") or photos[0].get("full_size_url", "")
         photo = item.get("photo", {})
-        return photo.get("url", "") or photo.get("full_size_url", "")
+        ts = photo.get("created_at_ts") or photo.get("updated_at_ts")
+        if ts:
+            age = datetime.now(timezone.utc) - datetime.fromtimestamp(ts, tz=timezone.utc)
+            return age < timedelta(hours=1, minutes=10)
     except:
-        return ""
+        pass
+    return True
 
 def notify(item):
     title = item.get("title", "?")
     price = item.get("price", {}).get("amount", "?")
     url = f"https://www.vinted.fr/items/{item['id']}"
-    photo_url = get_photo_url(item)
+    photos = item.get("photos", [])
+    photo_url = photos[0].get("url") if photos else None
 
+    text = f"{title}\nPrix : {price} EUR\n\n{url}"
     if photo_url:
         requests.post(
             f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto",
-            json={
-                "chat_id": TELEGRAM_CHAT_ID,
-                "photo": photo_url,
-                "caption": f"{title}\nPrix : {price} EUR\n\n{url}"
-            },
+            json={"chat_id": TELEGRAM_CHAT_ID, "photo": photo_url, "caption": text},
             timeout=10
         )
     else:
         requests.post(
             f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
-            json={
-                "chat_id": TELEGRAM_CHAT_ID,
-                "text": f"{title}\nPrix : {price} EUR\n\n{url}"
-            },
+            json={"chat_id": TELEGRAM_CHAT_ID, "text": text},
             timeout=10
         )
 
@@ -94,7 +77,6 @@ def main():
     logging.info("Bot démarré !")
     session = get_session()
     notified = set()
-    first_run = True
 
     while True:
         try:
@@ -104,20 +86,12 @@ def main():
                 time.sleep(300)
                 continue
 
-            valid_items = [i for i in items if is_valid(i)]
-
-            if first_run:
-                for item in valid_items:
-                    notified.add(str(item["id"]))
-                first_run = False
-                logging.info(f"{len(notified)} annonces existantes ignorées.")
-            else:
-                for item in valid_items:
-                    item_id = str(item["id"])
-                    if item_id not in notified:
-                        notify(item)
-                        notified.add(item_id)
-                        logging.info(f"Notifié : {item.get('title')}")
+            for item in items:
+                item_id = str(item["id"])
+                if is_valid(item) and is_recent(item) and item_id not in notified:
+                    notify(item)
+                    notified.add(item_id)
+                    logging.info(f"Notifié : {item.get('title')}")
 
         except Exception as e:
             logging.error(f"Erreur : {e}")
