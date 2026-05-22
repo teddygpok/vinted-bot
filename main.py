@@ -5,7 +5,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-CHECK_INTERVAL = 120
+CHECK_INTERVAL = 30
 
 VINTED_URL = "https://www.vinted.fr/api/v2/catalog/items"
 PARAMS = {"search_text": "rayquaza", "order": "newest_first", "per_page": 20}
